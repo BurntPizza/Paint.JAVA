@@ -94,8 +94,8 @@ public class PathChange implements IEditChange
 	
 	public static class Serial implements Serialised
 	{
-		private short[] points;
-		private int colour;
+		protected short[] points;
+		protected int colour;
 		
 		public Serial()
 		{

@@ -18,29 +18,57 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
-package heroesgrave.paint.image.change;
+package heroesgrave.paint.image.change.edit;
+
+import heroesgrave.paint.image.RawImage;
+import heroesgrave.paint.image.change.IEditChange;
+import heroesgrave.paint.io.Serialised;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-/**
- * A change that has no data and therefore can be contained in a single instance
- * 
- * @author HeroesGrave
- *
- */
-public abstract class SingleChange extends SerialisedChange
+public class FillImageChange implements IEditChange, Serialised
 {
-	public abstract SingleChange getInstance();
+	private int colour;
 	
-	@Override
-	public final void write(DataOutputStream out) throws IOException
+	public FillImageChange()
 	{
+		
+	}
+	
+	public FillImageChange(int colour)
+	{
+		this.colour = colour;
 	}
 	
 	@Override
-	public final void read(DataInputStream in) throws IOException
+	public void apply(RawImage image)
 	{
+		image.fill(colour);
+	}
+	
+	@Override
+	public FillImageChange encode()
+	{
+		return this;
+	}
+	
+	@Override
+	public FillImageChange decode()
+	{
+		return this;
+	}
+	
+	@Override
+	public void write(DataOutputStream out) throws IOException
+	{
+		out.writeInt(colour);
+	}
+	
+	@Override
+	public void read(DataInputStream in) throws IOException
+	{
+		colour = in.readInt();
 	}
 }

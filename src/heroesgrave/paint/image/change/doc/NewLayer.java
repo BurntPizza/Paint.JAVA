@@ -20,55 +20,80 @@
 
 package heroesgrave.paint.image.change.doc;
 
-import heroesgrave.paint.editing.SelectionTool;
 import heroesgrave.paint.image.Document;
 import heroesgrave.paint.image.Layer;
+import heroesgrave.paint.image.RawImage;
 import heroesgrave.paint.image.change.IDocChange;
 import heroesgrave.paint.image.change.edit.ClearMaskChange;
-import heroesgrave.paint.image.change.edit.SetMaskChange;
-import heroesgrave.paint.main.Paint;
 import heroesgrave.utils.misc.Metadata;
 
 public class NewLayer implements IDocChange
 {
 	private Layer layer, parent;
 	private int index = -1;
+	private RawImage image;
+	private String name;
+	private boolean floating;
 	
 	public NewLayer(Layer parent)
 	{
+		this(parent, prepareImage(parent));
+	}
+	
+	private static RawImage prepareImage(Layer parent)
+	{
+		RawImage image = new RawImage(parent.getWidth(), parent.getHeight());
+		image.copyMaskFrom(parent.getImage());
+		return image;
+	}
+	
+	public NewLayer(Layer parent, RawImage image)
+	{
+		this(parent, image, "New Layer");
+	}
+	
+	public NewLayer(Layer parent, RawImage image, String name)
+	{
 		this.parent = parent;
+		this.image = image;
+		this.name = name;
+	}
+	
+	public NewLayer floating()
+	{
+		this.floating = true;
+		return this;
 	}
 	
 	public void apply(Document doc)
 	{
-		layer = new Layer(doc, new Metadata());
-		parent.addLayer(layer);
-		doc.reconstructFlatmap();
+		parent.addChangeSilent(new ClearMaskChange());
 		
-		Layer current = Paint.getDocument().getCurrent();
-		if(current.getImage().isMaskEnabled())
-		{
-			boolean[] mask = current.getImage().copyMask();
-			current.addChange(new ClearMaskChange());
-			if(Paint.main.currentTool instanceof SelectionTool)
-			{
-				layer.addChange(new SetMaskChange(mask));
-			}
-		}
+		Metadata info = new Metadata();
+		info.set("name", name);
+		
+		if(floating)
+			layer = new Layer(doc, image, info).floating();
+		else
+			layer = new Layer(doc, image, info);
+		
+		parent.addLayer(layer);
 		doc.setCurrent(layer);
 	}
 	
 	public void revert(Document doc)
 	{
 		index = parent.removeLayer(layer);
-		doc.reconstructFlatmap();
 		doc.setCurrent(parent);
+		
+		parent.revertChange();
 	}
 	
 	public void repeat(Document doc)
 	{
+		parent.repeatChange();
+		
 		parent.addLayer(layer, index);
-		doc.reconstructFlatmap();
 		doc.setCurrent(layer);
 	}
 }

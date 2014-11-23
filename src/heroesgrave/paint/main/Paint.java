@@ -31,20 +31,18 @@ import heroesgrave.paint.io.ImageExporter;
 import heroesgrave.paint.plugin.Plugin;
 import heroesgrave.paint.plugin.PluginManager;
 import heroesgrave.utils.io.IOUtils;
+import heroesgrave.utils.misc.Callback;
 import heroesgrave.utils.misc.Version;
 
-import java.awt.BorderLayout;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.HashMap;
 
-import javax.swing.JButton;
 import javax.swing.SwingUtilities;
 import javax.swing.filechooser.FileFilter;
 
@@ -66,25 +64,23 @@ public class Paint
 	
 	public static final String VERSION_STRING = "0.15-Dev";
 	public static final Version VERSION = Version.parse(VERSION_STRING);
-	public static final String RELEASED = "09-11-2014";
+	public static final String RELEASED = "23-11-2014";
 	
 	/* Add/Remove the stars on the following lines to change the build type string.
 	//*/public static final String BUILD_TYPE = "Development";
-	//*/public static final String BUILD_TYPE = "Alpha";
+	//*/public static final String BUILD_TYPE = "Alpha"; // I don't know if we'll ever use alphas.
 	//*/public static final String BUILD_TYPE = "Beta";
 	//*/public static final String BUILD_TYPE = "Release Candidate";
 	//*/public static final String BUILD_TYPE = "Stable";
 	
-	public static boolean debug;
+	public static boolean debug, localPlugins = true, globalPlugins = true;
 	public static Paint main = new Paint();
 	public static URL questionMarkURL = Paint.class.getResource("/res/icons/questionmark.png");
 	
 	public GUIManager gui;
 	public PluginManager pluginManager;
 	
-	public Document document;
-	
-	private File toOpen;
+	private Document document;
 	
 	public Tool currentTool;
 	
@@ -98,29 +94,30 @@ public class Paint
 	
 	private static HashMap<Character, Effect> effectMap = new HashMap<Character, Effect>();
 	
-	public void launch()
+	public void launch(File toOpen)
 	{
-		ImageExporter.registerExporters();
-		
 		pluginManager = PluginManager.instance;
 		
-		pluginManager.addPluginDirectory(new File(IOUtils.assemblePath(System.getProperty("user.home"), ".paint-java", "plugins")));
-		pluginManager.addPluginDirectory(new File(IOUtils.assemblePath(IOUtils.jarDir(), "plugins")));
-		pluginManager.loadPluginFiles();
-		
 		HistoryIO.init();
+		
+		// Order is important. Prefer local (./plugins) plugins to global (~/.paint-java/plugins).
+		if(localPlugins)
+			pluginManager.addPluginDirectory(new File(IOUtils.assemblePath(IOUtils.jarDir(), "plugins")));
+		if(globalPlugins)
+			pluginManager.addPluginDirectory(new File(IOUtils.assemblePath(System.getProperty("user.home"), ".paint-java", "plugins")));
+		pluginManager.loadPluginFiles();
 		
 		tools = new Tools();
 		effects = new Effects();
 		
+		final Document document;
 		if(toOpen != null)
 		{
 			document = new Document(toOpen);
-			toOpen = null;
 		}
 		else
 		{
-			document = new Document(512, 512);
+			document = null;
 		}
 		
 		SwingUtilities.invokeLater(new Runnable()
@@ -134,77 +131,25 @@ public class Paint
 				setRightColour(0xffffffff, false);
 				
 				tools.init();
-				effects.init();
+				effects.init(); // Doesn't actually do anything
 				pluginManager.loadPlugins();
 				setTool(currentTool);
-				gui.setDocument(document);
+				if(document != null)
+				{
+					Paint.addDocument(document);
+					Paint.setDocument(document);
+				}
 				
 				Paint.main.gui.frame.requestFocus();
 			}
 		});
 	}
 	
-	public void newImage(final int width, final int height)
+	public static void newImage(final int width, final int height)
 	{
-		if(!document.saved)
-		{
-			final WebDialog newImage = new WebDialog(gui.frame, "Save current image?");
-			newImage.setAlwaysOnTop(true);
-			newImage.setAutoRequestFocus(true);
-			newImage.setLayout(new BorderLayout());
-			
-			JButton save = new JButton("Save & Create New Image");
-			JButton dispose = new JButton("Create new image without saving");
-			JButton cancel = new JButton("Don't create new image");
-			
-			newImage.add(save, BorderLayout.NORTH);
-			newImage.add(dispose, BorderLayout.CENTER);
-			newImage.add(cancel, BorderLayout.SOUTH);
-			
-			newImage.pack();
-			newImage.setResizable(false);
-			newImage.setVisible(true);
-			newImage.center(gui.frame);
-			
-			save.addActionListener(new ActionListener()
-			{
-				@Override
-				public void actionPerformed(ActionEvent e)
-				{
-					if(!Paint.save())
-						return;
-					newImage.dispose();
-					createImage(width, height);
-				}
-			});
-			dispose.addActionListener(new ActionListener()
-			{
-				@Override
-				public void actionPerformed(ActionEvent e)
-				{
-					newImage.dispose();
-					createImage(width, height);
-				}
-			});
-			cancel.addActionListener(new ActionListener()
-			{
-				@Override
-				public void actionPerformed(ActionEvent e)
-				{
-					newImage.dispose();
-				}
-			});
-		}
-		else
-		{
-			createImage(width, height);
-		}
-	}
-	
-	private void createImage(int width, int height)
-	{
-		this.document = new Document(width, height);
-		gui.setDocument(document);
+		Document doc = new Document(width, height);
+		Paint.addDocument(doc);
+		Paint.setDocument(doc);
 	}
 	
 	public static void addTool(Character key, Tool tool)
@@ -227,44 +172,42 @@ public class Paint
 		return effectMap.get(Character.toLowerCase(key));
 	}
 	
-	public static Document getDocument()
-	{
-		return main.document;
-	}
-	
 	public static void setTool(Tool tool)
 	{
 		Input.CTRL = false;
 		Input.ALT = false;
 		Input.SHIFT = false;
-		main.currentTool.onDeselect();
 		main.currentTool = tool;
-		main.currentTool.onSelect();
-		main.gui.setToolOption(tool.getOptions());
 		main.tools.toolbox.setSelected(tool);
 	}
 	
-	public static boolean save()
+	public static boolean save(Document doc)
 	{
-		if(getDocument().getFile() != null)
+		if(doc == null)
 		{
-			getDocument().save();
+			return false;
+		}
+		if(doc.getFile() != null)
+		{
+			doc.save();
 			return true;
 		}
 		else
-			return main.saveAs();
+			return saveAs(doc);
 	}
 	
-	public boolean saveAs()
+	public static boolean saveAs(Document doc)
 	{
-		WebFileChooser chooser = new WebFileChooser(document.getDir());
+		if(doc == null)
+		{
+			return false;
+		}
+		WebFileChooser chooser = new WebFileChooser(doc.getDir());
 		chooser.setFileSelectionMode(WebFileChooser.FILES_ONLY);
 		chooser.setAcceptAllFileFilterUsed(false);
 		
-		for(ImageExporter exporter : ImageExporter.exporters)
-		{
-			chooser.addChoosableFileFilter(exporter);
-		}
+		ImageExporter.addAllExporters(chooser);
+		
 		FileFilter allFilter = new FileFilter()
 		{
 			@Override
@@ -304,13 +247,13 @@ public class Paint
 				if(fileName.endsWith("." + format.getFileExtension()))
 				{
 					// Do nothing.
-					document.setFile(file);
+					doc.setFile(file);
 				}
 				else
 				{
 					// Put the format at the end of the File-Name!
 					fileName += "." + format.getFileExtension();
-					document.setFile(new File(fileName));
+					doc.setFile(new File(fileName));
 				}
 			}
 			else
@@ -320,10 +263,12 @@ public class Paint
 				{
 					file = new File(file.getAbsolutePath() + ".png");
 				}
-				document.setFile(file);
+				doc.setFile(file);
 			}
 			
-			document.save();
+			if(doc == main.document)
+				main.gui.setTitle(doc.getFile().getName());
+			doc.save();
 			return true;
 		}
 		return false;
@@ -395,6 +340,8 @@ public class Paint
 	{
 		IOUtils.setMainClass(Paint.class);
 		
+		File open = null;
+		
 		// Check for a file argument
 		if(args.length >= 1)
 		{
@@ -402,7 +349,7 @@ public class Paint
 			
 			if(f.exists() && f.isFile() && !f.isHidden())
 			{
-				main.toOpen = f;
+				open = f;
 			}
 		}
 		
@@ -450,11 +397,21 @@ public class Paint
 				debug = true;
 			}
 			
+			if(STR.equals("--no-global-plugins"))
+			{
+				globalPlugins = false;
+			}
+			
+			if(STR.equals("--no-local-plugins"))
+			{
+				localPlugins = false;
+			}
+			
 			/// XXX: Expand here by adding more debugging options and system flags!
 		}
 		
 		// Finally Launch Paint.JAVA!
-		main.launch();
+		main.launch(open);
 	}
 	
 	public static Version getVersion()
@@ -462,17 +419,83 @@ public class Paint
 		return VERSION;
 	}
 	
-	public static void setDocument(File file)
+	public static void addDocument(Document doc)
 	{
-		main.document = new Document(file);
-		main.gui.layers.setDocument(main.document);
+		main.gui.addDocument(doc);
+	}
+	
+	public static void setDocument(Document doc)
+	{
+		main.document = doc;
 		main.gui.setDocument(main.document);
+	}
+	
+	public static Document getDocument()
+	{
+		return main.document;
+	}
+	
+	public static void closeAllDocuments()
+	{
+		Paint.closeDocument(Paint.getDocument(), new Callback()
+		{
+			public void callback()
+			{
+				Paint.closeAllDocuments();
+			}
+		});
+	}
+	
+	public static void closeDocument(Document doc)
+	{
+		closeDocument(doc, new Callback()
+		{
+			public void callback()
+			{
+			}
+		});
+	}
+	
+	public static void closeDocument(final Document doc, final Callback callback)
+	{
+		if(main.gui.getDocuments().isEmpty())
+		{
+			Paint.close();
+		}
+		final int index = main.gui.getDocuments().indexOf(doc);
+		main.gui.tryRemove(doc, new Callback()
+		{
+			public void callback()
+			{
+				ArrayList<Document> documents = main.gui.getDocuments();
+				if(main.gui.getDocuments().isEmpty())
+				{
+					setDocument(null);
+				}
+				if(doc == main.document)
+				{
+					if(index == 0)
+						setDocument(documents.get(0));
+					else
+						setDocument(documents.get(index - 1));
+				}
+				callback.callback();
+			}
+		});
 	}
 	
 	public static void close()
 	{
+		UserPreferences.savePrefs(main.gui.frame, main.gui.chooser, main.gui.layers);
 		main.pluginManager.dispose();
 		main.gui.frame.dispose();
 		System.exit(0);
+	}
+	
+	public static String getDir()
+	{
+		if(main.document != null)
+			return main.document.getDir();
+		return System.getProperty("user.dir");
 	}
 }

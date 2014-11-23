@@ -22,10 +22,19 @@ package heroesgrave.paint.main;
 
 import heroesgrave.paint.editing.Effect;
 import heroesgrave.paint.editing.Tool;
+import heroesgrave.paint.gui.ClipboardHandler;
 import heroesgrave.paint.gui.Menu;
+import heroesgrave.paint.image.Document;
+import heroesgrave.paint.image.Layer;
+import heroesgrave.paint.image.RawImage;
 import heroesgrave.paint.image.RawImage.MaskMode;
+import heroesgrave.paint.image.change.doc.FloatLayer;
+import heroesgrave.paint.image.change.doc.MergeLayer;
+import heroesgrave.paint.image.change.doc.NewLayer;
 import heroesgrave.paint.image.change.edit.ClearMaskChange;
+import heroesgrave.paint.image.change.edit.FillImageChange;
 import heroesgrave.paint.image.change.edit.FillMaskChange;
+import heroesgrave.paint.image.change.edit.ResizeCanvasChange;
 
 import java.awt.AWTException;
 import java.awt.MouseInfo;
@@ -70,8 +79,7 @@ public class Input implements KeyListener
 		
 		if(e.getKeyCode() == KeyEvent.VK_DELETE)
 		{
-			//Canvas selection = Paint.main.gui.canvas.selection.getSelection();
-			//Paint.main.history.addChange(new DeleteSelectionOp(selection, Paint.main.gui.canvas.getParentOf(selection)));
+			Paint.getDocument().getCurrent().addChange(new FillImageChange(0x00000000));
 		}
 		
 		int MOVE = 1;
@@ -81,17 +89,7 @@ public class Input implements KeyListener
 			MOVE = 8;
 			if(e.isShiftDown())
 			{
-				if(e.getKeyCode() == KeyEvent.VK_S)
-				{
-					new Thread(new Runnable()
-					{
-						public void run()
-						{
-							Paint.main.saveAs();
-						}
-					}).start();
-				}
-				else if(keyCodeToChar.containsKey(e.getKeyCode()))
+				if(keyCodeToChar.containsKey(e.getKeyCode()))
 				{
 					Effect effect = Paint.getEffect(keyCodeToChar.get(e.getKeyCode()));
 					if(effect != null)
@@ -103,17 +101,7 @@ public class Input implements KeyListener
 			}
 			else
 			{
-				if(e.getKeyCode() == KeyEvent.VK_Z)
-				{
-					Paint.getDocument().getHistory().revertChange();
-					Paint.main.gui.repaint();
-				}
-				else if(e.getKeyCode() == KeyEvent.VK_Y)
-				{
-					Paint.getDocument().getHistory().repeatChange();
-					Paint.main.gui.repaint();
-				}
-				else if(e.getKeyCode() == KeyEvent.VK_EQUALS)
+				if(e.getKeyCode() == KeyEvent.VK_EQUALS)
 				{
 					float zoom = Paint.main.gui.canvasPanel.getScale();
 					if(zoom < 1f)
@@ -141,16 +129,6 @@ public class Input implements KeyListener
 				{
 					Paint.main.gui.canvasPanel.setScale(1f);
 				}
-				else if(e.getKeyCode() == KeyEvent.VK_S)
-				{
-					new Thread(new Runnable()
-					{
-						public void run()
-						{
-							Paint.save();
-						}
-					}).start();
-				}
 				else if(e.getKeyCode() == KeyEvent.VK_N)
 				{
 					Menu.showNewDialog();
@@ -159,59 +137,107 @@ public class Input implements KeyListener
 				{
 					Menu.showOpenMenu();
 				}
-				else if(e.getKeyCode() == KeyEvent.VK_G)
-				{
-					Menu.GRID_ENABLED = !Menu.GRID_ENABLED;
-					Paint.main.gui.repaint();
-				}
 				else if(e.getKeyCode() == KeyEvent.VK_B)
 				{
 					Menu.DARK_BACKGROUND = !Menu.DARK_BACKGROUND;
 					Paint.main.gui.canvasPanel.repaint();
-					//Paint.getDocument().repaint();
-					//Paint.main.gui.canvasPanel.maskChanged();
 				}
-				else if(e.getKeyCode() == KeyEvent.VK_D)
+				else if(e.getKeyCode() == KeyEvent.VK_Q)
 				{
-					Paint.getDocument().getCurrent().addChange(new ClearMaskChange());
-				}
-				else if(e.getKeyCode() == KeyEvent.VK_A)
-				{
-					Paint.getDocument().getCurrent().addChange(new FillMaskChange(MaskMode.ADD));
-				}
-				else if(e.getKeyCode() == KeyEvent.VK_I)
-				{
-					Paint.getDocument().getCurrent().addChange(new FillMaskChange(MaskMode.XOR));
-				}
-				else if(e.getKeyCode() == KeyEvent.VK_C)
-				{
-					/*
-					SelectionCanvas sel =
-							Paint.main.gui.canvas.selection.getSelection();
-					if(sel != null)
-						ClipboardHandler.copy(sel.getBoundedSelection());
-					*/
-				}
-				else if(e.getKeyCode() == KeyEvent.VK_X)
-				{
-					/*
-					SelectionCanvas sel =
-							Paint.main.gui.canvas.selection.getSelection();
-					if(sel != null)
+					if(Paint.getDocument() != null)
 					{
-						ClipboardHandler.copy(sel.getBoundedSelection());
-						Paint.main.history.addChange(new DeleteSelectionOp(sel,
-								Paint.main.gui.canvas.getParentOf(sel)));
+						Paint.closeDocument(Paint.getDocument());
 					}
-					*/
+					else
+					{
+						Paint.close();
+					}
 				}
-				else if(e.getKeyCode() == KeyEvent.VK_V)
+				else if(Paint.getDocument() != null)
 				{
-					/*
-					BufferedImage image = ClipboardHandler.paste();
-					if(image != null)
-						Paint.main.gui.canvas.selection.paste(image);
-					*/
+					if(e.getKeyCode() == KeyEvent.VK_Z)
+					{
+						Paint.getDocument().getHistory().revertChange();
+						Paint.main.gui.repaint();
+					}
+					else if(e.getKeyCode() == KeyEvent.VK_Y)
+					{
+						Paint.getDocument().getHistory().repeatChange();
+						Paint.main.gui.repaint();
+					}
+					else if(e.getKeyCode() == KeyEvent.VK_S)
+					{
+						final boolean as = e.isAltDown();
+						new Thread(new Runnable()
+						{
+							public void run()
+							{
+								if(as)
+									Paint.saveAs(Paint.getDocument());
+								else
+									Paint.save(Paint.getDocument());
+							}
+						}).start();
+					}
+					else if(e.getKeyCode() == KeyEvent.VK_G)
+					{
+						// FIXME Grid isn't actually working.
+						Menu.GRID_ENABLED = !Menu.GRID_ENABLED;
+						Paint.main.gui.repaint();
+					}
+					else if(e.getKeyCode() == KeyEvent.VK_D)
+					{
+						Paint.getDocument().getCurrent().addChange(new ClearMaskChange());
+					}
+					else if(e.getKeyCode() == KeyEvent.VK_A)
+					{
+						Paint.getDocument().getCurrent().addChange(new FillMaskChange(MaskMode.ADD));
+					}
+					else if(e.getKeyCode() == KeyEvent.VK_I)
+					{
+						Paint.getDocument().getCurrent().addChange(new FillMaskChange(MaskMode.XOR));
+					}
+					else if(e.getKeyCode() == KeyEvent.VK_F)
+					{
+						Document doc = Paint.getDocument();
+						if(!doc.getCurrent().isFloating())
+						{
+							doc.addChange(new FloatLayer(Paint.getDocument().getCurrent(), e.isAltDown()));
+						}
+					}
+					else if(e.getKeyCode() == KeyEvent.VK_M)
+					{
+						Layer current = Paint.getDocument().getCurrent();
+						if(current.getChildCount() == 0)
+							Paint.getDocument().addChange(new MergeLayer(current));
+					}
+					else if(e.getKeyCode() == KeyEvent.VK_C)
+					{
+						ClipboardHandler.setImage(Paint.getDocument().getCurrent().getImage());
+					}
+					else if(e.getKeyCode() == KeyEvent.VK_X)
+					{
+						ClipboardHandler.setImage(Paint.getDocument().getCurrent().getImage());
+						Paint.getDocument().getCurrent().addChange(new FillImageChange(0x00000000));
+					}
+					else if(e.getKeyCode() == KeyEvent.VK_V)
+					{
+						Document doc = Paint.getDocument();
+						RawImage image = ClipboardHandler.getImage();
+						if(image != null)
+						{
+							if(doc.getCurrent().isFloating())
+							{
+								doc.addChange(new MergeLayer(doc.getCurrent()));
+							}
+							// Fun hack.
+							if(image.width != doc.getWidth() || image.height != doc.getHeight())
+							{
+								image = new ResizeCanvasChange(doc.getWidth(), doc.getHeight()).apply(image);
+							}
+							doc.addChange(new NewLayer(doc.getCurrent(), image, "Floating Layer").floating());
+						}
+					}
 				}
 			}
 		}

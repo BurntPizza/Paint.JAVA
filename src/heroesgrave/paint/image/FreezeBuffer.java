@@ -46,8 +46,8 @@ public class FreezeBuffer
 		}
 	}
 	
-	public static final int MAXIMUM = 1;
-	public static final int MAXIMUM_ORDER = 1;
+	public static final int MAXIMUM = 16;
+	public static final int MAXIMUM_ORDER = 16;
 	
 	private LinkedList<OldBuffer> fullBuffers = new LinkedList<OldBuffer>();
 	private LinkedList<OldBuffer> oldBuffers = new LinkedList<OldBuffer>();
@@ -67,7 +67,7 @@ public class FreezeBuffer
 		this.marker = new Marker();
 		this.image = new BufferedImage(image.width, image.height, BufferedImage.TYPE_INT_ARGB);
 		this.front = RawImage.unwrapBufferedImage(this.image);
-		this.front.copyFrom(this.back, false);
+		this.front.copyFrom(this.back, true);
 	}
 	
 	private void pushOldBuffer(OldBuffer buffer)
@@ -201,7 +201,7 @@ public class FreezeBuffer
 					}
 				}
 				toReturn.push(s);
-				if(!(s instanceof IMarker))
+				if(!(s instanceof Marker))
 				{
 					toApply.push(s.decode());
 				}
@@ -339,6 +339,7 @@ public class FreezeBuffer
 	
 	public RawImage getImage()
 	{
+		checkBuffered();
 		return front;
 	}
 }

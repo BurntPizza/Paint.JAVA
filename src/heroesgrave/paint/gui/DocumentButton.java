@@ -20,41 +20,52 @@
 
 package heroesgrave.paint.gui;
 
-import heroesgrave.utils.misc.IFunc;
+import heroesgrave.paint.image.Document;
+import heroesgrave.paint.main.Paint;
+import heroesgrave.utils.io.IOUtils;
 
-import javax.swing.JTextField;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.File;
+
+import com.alee.laf.button.WebButton;
 
 @SuppressWarnings("serial")
-public class SimpleActionTextField extends JTextField implements DocumentListener
+public class DocumentButton extends WebButton implements ActionListener
 {
-	private IFunc<String> call;
+	protected Document doc;
 	
-	public SimpleActionTextField(String string, IFunc<String> call)
+	public DocumentButton(Document doc)
 	{
-		super(string);
-		this.call = call;
-		
-		this.getDocument().addDocumentListener(this);
+		super("Untitled");
+		this.doc = doc;
+		this.addActionListener(this);
+		this.setFocusable(false);
+		checkName();
 	}
 	
 	@Override
-	public void insertUpdate(DocumentEvent e)
+	public void actionPerformed(ActionEvent e)
 	{
-		call.action(this.getText());
+		Paint.setDocument(doc);
 	}
 	
-	@Override
-	public void removeUpdate(DocumentEvent e)
+	public void checkName()
 	{
-		call.action(this.getText());
+		File f = doc.getFile();
+		String s;
+		if(f != null)
+		{
+			s = IOUtils.relativeFrom(System.getProperty("user.dir"), f.getPath());
+		}
+		else
+		{
+			s = "Untitled";
+		}
+		if(!doc.saved())
+		{
+			s += "*";
+		}
+		this.setText(s);
 	}
-	
-	@Override
-	public void changedUpdate(DocumentEvent e)
-	{
-		call.action(this.getText());
-	}
-	
 }

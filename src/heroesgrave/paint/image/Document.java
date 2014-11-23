@@ -50,7 +50,7 @@ public class Document
 	private IChange previewChange;
 	public int lowestChange;
 	
-	public boolean saved, repaint;
+	public boolean repaint;
 	
 	private ArrayList<Layer> flatmap = new ArrayList<Layer>();
 	
@@ -145,10 +145,11 @@ public class Document
 		
 		final Document doc = this;
 		
-		System.out.println("a");
 		try
 		{
-			exporter.export(doc, new File(fileName));
+			exporter.save(doc, new File(fileName));
+			history.save();
+			Paint.main.gui.checkButtonNames();
 		}
 		catch(IOException e)
 		{
@@ -156,7 +157,6 @@ public class Document
 			JOptionPane.showMessageDialog(null, "An error occurred while saving the Image:\n" + e.getLocalizedMessage(), "Error", JOptionPane.ERROR_MESSAGE);
 			return;
 		}
-		System.out.println("b");
 	}
 	
 	public String getDir()
@@ -220,6 +220,7 @@ public class Document
 	
 	public void changed(Layer layer)
 	{
+		Paint.main.gui.checkButtonNames();
 		lowestChange = Math.min(lowestChange, flatmap.indexOf(layer));
 		this.repaint();
 	}
@@ -253,6 +254,13 @@ public class Document
 		this.allChanged();
 	}
 	
+	public void addChangeSilent(IDocChange change)
+	{
+		changes.push(change);
+		change.apply(this);
+		this.allChanged();
+	}
+	
 	public void revertChange()
 	{
 		if(changes.isEmpty())
@@ -275,6 +283,11 @@ public class Document
 		changes.push(change);
 		change.repeat(this);
 		this.allChanged();
+	}
+	
+	public boolean saved()
+	{
+		return this.history.isSaved();
 	}
 	
 	public void repaint()

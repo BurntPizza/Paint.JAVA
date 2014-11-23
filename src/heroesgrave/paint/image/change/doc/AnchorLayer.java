@@ -23,61 +23,60 @@ package heroesgrave.paint.image.change.doc;
 import heroesgrave.paint.image.Document;
 import heroesgrave.paint.image.Layer;
 import heroesgrave.paint.image.RawImage;
-import heroesgrave.paint.image.blend.BlendMode;
 import heroesgrave.paint.image.change.IDocChange;
-import heroesgrave.paint.image.change.edit.SetImageChange;
+import heroesgrave.utils.misc.Metadata;
 
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
-
-public class MergeLayer implements IDocChange
+public class AnchorLayer implements IDocChange
 {
-	private Layer layer, parent;
+	private Layer layer, old, parent;
 	private int index = -1;
+	private RawImage image;
+	private String name;
 	
-	public MergeLayer(Layer layer)
+	public AnchorLayer(Layer layer)
 	{
-		this.layer = layer;
+		this(layer, prepareImage(layer));
 	}
 	
-	@Override
+	private static RawImage prepareImage(Layer layer)
+	{
+		RawImage image = new RawImage(layer.getWidth(), layer.getHeight());
+		image.copyFrom(layer.getImage(), true);
+		return image;
+	}
+	
+	public AnchorLayer(Layer layer, RawImage image)
+	{
+		this.old = layer;
+		this.parent = layer.getParentLayer();
+		this.image = image;
+		this.name = layer.getMetadata().get("name");
+		if(this.name.equals("Floating Layer"))
+			this.name = "New Layer";
+	}
+	
 	public void apply(Document doc)
 	{
-		this.parent = layer.getParentLayer();
-		this.index = parent.removeLayer(layer);
-		doc.reconstructFlatmap();
-		doc.setCurrent(parent);
+		Metadata info = new Metadata();
+		info.set("name", name);
 		
-		BufferedImage image = new BufferedImage(doc.getWidth(), doc.getHeight(), BufferedImage.TYPE_INT_ARGB);
-		BlendMode mode = layer.getBlendMode();
-		{
-			Graphics2D g = image.createGraphics();
-			g.drawImage(parent.getBufferedImage(), 0, 0, null);
-			g.setComposite(mode);
-			g.drawImage(layer.getBufferedImage(), 0, 0, null);
-			g.dispose();
-		}
-		int[] buffer = RawImage.fromBufferedImage(image).borrowBuffer();
-		parent.addChangeSilent(new SetImageChange(buffer));
+		layer = new Layer(doc, image, info);
+		index = parent.removeLayer(old);
+		parent.addLayer(layer, index);
+		doc.setCurrent(layer);
 	}
 	
-	@Override
 	public void revert(Document doc)
 	{
-		parent.revertChange();
-		
-		parent.addLayer(layer, index);
-		doc.reconstructFlatmap();
-		doc.setCurrent(layer);
+		index = parent.removeLayer(layer);
+		parent.addLayer(old, index);
+		doc.setCurrent(parent);
 	}
 	
-	@Override
 	public void repeat(Document doc)
 	{
-		parent.removeLayer(layer);
-		doc.reconstructFlatmap();
+		index = parent.removeLayer(old);
+		parent.addLayer(layer, index);
 		doc.setCurrent(layer);
-		
-		parent.repeatChange();
 	}
 }

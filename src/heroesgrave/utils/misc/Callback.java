@@ -20,9 +20,13 @@
 
 package heroesgrave.utils.misc;
 
-public interface IFunc<PARAM>
+/**
+ * Can probably delete this if we ever make Java 8 the minimum.
+ * 
+ * @author HeroesGrave
+ *
+ */
+public interface Callback
 {
-	
-	public abstract void action(PARAM param);
-	
+	public void callback();
 }

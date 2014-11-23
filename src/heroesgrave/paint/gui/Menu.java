@@ -20,6 +20,7 @@
 
 package heroesgrave.paint.gui;
 
+import heroesgrave.paint.image.Document;
 import heroesgrave.paint.io.ImageImporter;
 import heroesgrave.paint.main.Paint;
 import heroesgrave.paint.main.Popup;
@@ -194,7 +195,7 @@ public class Menu
 				{
 					public void run()
 					{
-						Paint.save();
+						Paint.save(Paint.getDocument());
 					}
 				}).start();
 			}
@@ -209,7 +210,7 @@ public class Menu
 				{
 					public void run()
 					{
-						Paint.main.saveAs();
+						Paint.saveAs(Paint.getDocument());
 					}
 				}).start();
 			}
@@ -220,7 +221,7 @@ public class Menu
 			@Override
 			public void actionPerformed(ActionEvent e)
 			{
-				Paint.main.gui.displayCloseDialogue();
+				Paint.closeAllDocuments();
 			}
 		});
 		
@@ -229,8 +230,7 @@ public class Menu
 	
 	public static void showOpenMenu()
 	{
-		System.out.println("ShowOpenMenu");
-		final WebFileChooser chooser = new WebFileChooser(Paint.getDocument().getDir());
+		final WebFileChooser chooser = new WebFileChooser(Paint.getDir());
 		chooser.setFileSelectionMode(WebFileChooser.FILES_ONLY);
 		chooser.setAcceptAllFileFilterUsed(false);
 		chooser.addChoosableFileFilter(new FileFilter()
@@ -299,7 +299,9 @@ public class Menu
 				@Override
 				public void run()
 				{
-					Paint.setDocument(chooser.getSelectedFile());
+					Document doc = new Document(chooser.getSelectedFile());
+					Paint.addDocument(doc);
+					Paint.setDocument(doc);
 				}
 			}).start();
 		}
@@ -349,7 +351,7 @@ public class Menu
 				}
 				else
 				{
-					Paint.main.newImage(w, h);
+					Paint.newImage(w, h);
 				}
 			}
 		});
@@ -382,14 +384,14 @@ public class Menu
 		
 		WebMenuItem undo = new WebMenuItem("Undo (Ctrl+Z)", GUIManager.getIcon("undo"));
 		WebMenuItem redo = new WebMenuItem("Redo (Ctrl+Y)", GUIManager.getIcon("redo"));
-		WebMenuItem clear = new WebMenuItem("Clear History", GUIManager.getIcon("clear_history"));
 		
 		undo.addActionListener(new ActionListener()
 		{
 			@Override
 			public void actionPerformed(ActionEvent arg0)
 			{
-				//Paint.main.history.revertChange();
+				if(Paint.getDocument() != null)
+					Paint.getDocument().getHistory().revertChange();
 			}
 		});
 		
@@ -398,22 +400,13 @@ public class Menu
 			@Override
 			public void actionPerformed(ActionEvent arg0)
 			{
-				//Paint.main.history.repeatChange();
-			}
-		});
-		
-		clear.addActionListener(new ActionListener()
-		{
-			@Override
-			public void actionPerformed(ActionEvent arg0)
-			{
-				//Paint.main.history.clearHistory();
+				if(Paint.getDocument() != null)
+					Paint.getDocument().getHistory().repeatChange();
 			}
 		});
 		
 		edit.add(undo);
 		edit.add(redo);
-		edit.add(clear);
 		
 		return edit;
 	}
@@ -461,8 +454,8 @@ public class Menu
 			public void actionPerformed(ActionEvent e)
 			{
 				DARK_BACKGROUND = !DARK_BACKGROUND;
-				Paint.getDocument().repaint();
-				Paint.main.gui.canvasPanel.maskChanged();
+				if(Paint.getDocument() != null)
+					Paint.main.gui.repaint();
 			}
 		});
 		
